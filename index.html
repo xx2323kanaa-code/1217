@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no" />
-<title>Robot Hand: Ergonomic Unit Alignment</title>
+<title>Robot Hand: Rigid Alignment & Unit Grip</title>
 <style>
   html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: #111; display: flex; justify-content: center; align-items: center; overflow: hidden; }
   #controls { position: fixed; bottom: 30px; display: flex; gap: 20px; z-index: 100; }
@@ -15,37 +15,34 @@
   .dark-part { fill: #555; stroke: #1a1a1a; stroke-width: 2px; }
   .joint { fill: #333; stroke: #111; stroke-width: 2px; }
   .nail { fill: #ddd; stroke: #1a1a1a; stroke-width: 1px; }
-  .phone { fill: #4da6ff; stroke: #111; stroke-width: 3px; rx: 10; ry: 10; opacity: 0; transition: 0.5s; }
+  .phone { fill: #4da6ff; stroke: #111; stroke-width: 3px; rx: 10; ry: 10; opacity: 0; transition: 0.4s; }
 
-  /* 基本アニメーション設定 */
+  /* アニメーション：位置の跳ねを抑制 */
   #hand-pivot, .f-base, .f-tip, #thumb-group, .thumb-distal { 
-    transition: transform 0.7s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.5s; 
+    transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.4s; 
   }
 
-  /* --- HOLD：知覚的ユニット配置の規制 --- */
+  /* --- HOLD：厳密な整列規制 --- */
   .is-holding .phone { opacity: 1; }
-  .is-holding #hand-pivot { transform: rotate(-35deg); transform-origin: 200px 540px; }
+  
+  /* 手のひら：その場で傾ける（移動させない） */
+  .is-holding #hand-pivot { transform: rotate(-35deg); transform-origin: 200px 480px; }
 
-  /* 全指の基節骨（付け根）をケータイの陰へ隠す短縮 */
+  /* 4本の指先：ケータイ左端（X=165）に末端をピッタリ揃える */
   .is-holding .f-base { transform: scaleY(0.4) translateY(30px); opacity: 0; }
 
-  /* ユニットA（小指・薬指）: 下側に配置 */
-  .is-holding #f-little .f-tip { transform: translate(50px, 60px) rotate(105deg); }
-  .is-holding #f-ring .f-tip   { transform: translate(50px, 35px) rotate(105deg); }
+  /* ユニットA（小指・薬指）：ケータイ下部に隙間なく整列 */
+  .is-holding #f-little .f-tip { transform: translate(47px, 50px) rotate(90deg); }
+  .is-holding #f-ring .f-tip   { transform: translate(47px, 25px) rotate(90deg); }
 
-  /* ユニットB（中指・人差し指）: 薬指の上に平行に配置（演算を0.1s遅らせる） */
-  .is-holding #f-middle .f-tip { 
-    transform: translate(50px, 10px) rotate(105deg); 
-    transition-delay: 0.1s; 
-  }
-  .is-holding #f-index .f-tip { 
-    transform: translate(50px, -15px) rotate(105deg); 
-    transition-delay: 0.15s; 
-  }
+  /* ユニットB（中指・人差し指）：薬指の上に隙間なく、わずかに外側へ揃える */
+  .is-holding #f-middle .f-tip { transform: translate(49px, 0px) rotate(90deg); }
+  .is-holding #f-index .f-tip  { transform: translate(49px, -25px) rotate(90deg); }
 
-  /* 親指：関節をロックしたままケータイの反対側へ */
-  .is-holding #thumb-group { transform: translate(-10px, -10px) rotate(-40deg); transform-origin: 320px 480px; }
-  .is-holding .thumb-distal { transform: rotate(35deg); transform-origin: 329px 410px; }
+  /* 親指：軸を下げ、逆方向への屈曲を反映 */
+  #thumb-group { transform-origin: 310px 490px; }
+  .is-holding #thumb-group { transform: rotate(-35deg) translate(-5px, -5px); }
+  .is-holding .thumb-distal { transform: rotate(15deg); transform-origin: 329px 415px; }
 </style>
 </head>
 <body>
@@ -56,40 +53,43 @@
 </div>
 
 <svg viewBox="0 0 400 800" id="canvas">
-  <path class="dark-part" d="M140 540 L140 680 L260 680 L260 540 Z" />
-  <ellipse class="joint" cx="200" cy="540" rx="65" ry="22" />
+  <g id="wrist-fixed">
+    <path class="dark-part" d="M140 540 L140 680 L260 680 L260 540 Z" />
+    <ellipse class="joint" cx="200" cy="540" rx="65" ry="22" />
+  </g>
 
   <g id="hand-pivot">
     <path class="skin" d="M125 380 L110 460 Q140 560 200 560 Q260 560 290 460 L315 420 L275 380 L225 360 L175 360 Z" />
-    <rect id="phone" class="phone" x="165" y="195" width="105" height="255" />
-
-    <g id="f-little" class="f-group">
-      <g class="f-base" style="transform-origin: 130px 380px;"><rect class="skin" x="118" y="290" width="24" height="90" rx="10"/><circle class="joint" cx="130" cy="380" r="14"/></g>
-      <g class="f-tip" style="transform-origin: 130px 290px;"><rect class="skin" x="118" y="220" width="24" height="70" rx="10"/><path class="nail" d="M122 225 Q130 215 138 225 L138 240 L122 240 Z"/><circle class="joint" cx="130" cy="290" r="12"/></g>
-    </g>
-
-    <g id="f-ring" class="f-group">
-      <g class="f-base" style="transform-origin: 175px 360px;"><rect class="skin" x="163" y="260" width="24" height="100" rx="10"/><circle class="joint" cx="175" cy="360" r="14"/></g>
-      <g class="f-tip" style="transform-origin: 175px 260px;"><rect class="skin" x="163" y="190" width="24" height="70" rx="10"/><path class="nail" d="M167 195 Q175 185 183 195 L183 210 L167 210 Z"/><circle class="joint" cx="175" cy="260" r="12"/></g>
-    </g>
-
-    <g id="f-middle" class="f-group">
-      <g class="f-base" style="transform-origin: 225px 360px;"><rect class="skin" x="213" y="255" width="24" height="105" rx="10"/><circle class="joint" cx="225" cy="360" r="14"/></g>
-      <g class="f-tip" style="transform-origin: 225px 255px;"><rect class="skin" x="213" y="185" width="24" height="70" rx="10"/><path class="nail" d="M217 190 Q225 180 233 190 L233 205 L217 205 Z"/><circle class="joint" cx="225" cy="255" r="12"/></g>
-    </g>
+    
+    <rect id="phone" class="phone" x="165" y="200" width="100" height="260" />
 
     <g id="f-index" class="f-group">
       <g class="f-base" style="transform-origin: 275px 380px;"><rect class="skin" x="263" y="280" width="24" height="100" rx="10"/><circle class="joint" cx="275" cy="380" r="14"/></g>
-      <g class="f-tip" style="transform-origin: 275px 280px;"><rect class="skin" x="263" y="210" width="24" height="70" rx="10"/><path class="nail" d="M267 215 Q275 205 283 215 L283 230 L267 230 Z"/><circle class="joint" cx="275" cy="280" r="12"/></g>
+      <g class="f-tip" style="transform-origin: 275px 280px;"><rect class="skin" x="263" y="220" width="24" height="60" rx="10"/><path class="nail" d="M267 225 Q275 215 283 225 L283 240 L267 240 Z"/><circle class="joint" cx="275" cy="280" r="12"/></g>
+    </g>
+
+    <g id="f-middle" class="f-group">
+      <g class="f-base" style="transform-origin: 225px 360px;"><rect class="skin" x="213" y="260" width="24" height="100" rx="10"/><circle class="joint" cx="225" cy="360" r="14"/></g>
+      <g class="f-tip" style="transform-origin: 225px 255px;"><rect class="skin" x="213" y="195" width="24" height="60" rx="10"/><path class="nail" d="M217 200 Q225 190 233 200 L233 215 L217 215 Z"/><circle class="joint" cx="225" cy="255" r="12"/></g>
+    </g>
+
+    <g id="f-ring" class="f-group">
+      <g class="f-base" style="transform-origin: 175px 360px;"><rect class="skin" x="163" y="270" width="24" height="90" rx="10"/><circle class="joint" cx="175" cy="360" r="14"/></g>
+      <g class="f-tip" style="transform-origin: 175px 260px;"><rect class="skin" x="163" y="200" width="24" height="60" rx="10"/><path class="nail" d="M167 205 Q175 195 183 205 L183 220 L167 220 Z"/><circle class="joint" cx="175" cy="260" r="12"/></g>
+    </g>
+
+    <g id="f-little" class="f-group">
+      <g class="f-base" style="transform-origin: 130px 380px;"><rect class="skin" x="118" y="300" width="24" height="80" rx="10"/><circle class="joint" cx="130" cy="380" r="14"/></g>
+      <g class="f-tip" style="transform-origin: 130px 290px;"><rect class="skin" x="118" y="230" width="24" height="60" rx="10"/><path class="nail" d="M122 235 Q130 225 138 235 L138 250 L122 250 Z"/><circle class="joint" cx="130" cy="290" r="12"/></g>
     </g>
 
     <g id="thumb-group">
-      <ellipse class="skin" cx="320" cy="480" rx="28" ry="38" transform="rotate(-20 320 480)"/>
-      <rect class="skin" x="305" y="410" width="30" height="70" rx="12" transform="rotate(-15 320 480)" />
+      <ellipse class="skin" cx="310" cy="490" rx="28" ry="38" transform="rotate(-20 310 490)"/>
+      <rect class="skin" x="295" y="420" width="30" height="70" rx="12" transform="rotate(-15 310 490)" />
       <g class="thumb-distal">
-        <rect class="skin" x="315" y="340" width="28" height="70" rx="10" transform="rotate(-15 329 410)" />
-        <path class="nail" d="M325 345 Q335 335 345 350 L340 360 L320 355 Z" transform="rotate(-15 329 410)"/>
-        <circle class="joint" cx="329" cy="410" r="13" />
+        <rect class="skin" x="315" y="340" width="28" height="70" rx="10" transform="rotate(-15 329 415)" />
+        <path class="nail" d="M325 345 Q335 335 345 350 L340 360 L320 355 Z" transform="rotate(-15 329 415)"/>
+        <circle class="joint" cx="329" cy="415" r="13" />
       </g>
     </g>
   </g>
