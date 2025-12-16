@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no" />
+<title>Robot Hand: Perfect Hold Implementation</title>
+<style>
+  html, body {
+    margin: 0; padding: 0; width: 100%; height: 100%; background: #111;
+    display: flex; justify-content: center; align-items: center; overflow: hidden;
+    font-family: sans-serif;
+  }
+
+  /* UI Controls */
+  #controls {
+    position: fixed; bottom: 30px; display: flex; gap: 20px; z-index: 100;
+  }
+  button {
+    background: #222; color: #ccc; border: 1px solid #444;
+    padding: 12px 28px; border-radius: 30px; font-size: 14px;
+    letter-spacing: 1px; cursor: pointer; transition: all 0.3s ease; font-weight: bold;
+  }
+  button:hover { background: #444; color: #fff; }
+  button.active { 
+    background: #f0c040; color: #000; border-color: #f0c040; 
+    box-shadow: 0 0 15px rgba(240, 192, 64, 0.4);
+  }
+
+  /* SVG Styling */
+  svg { height: 90vh; width: 100%; max-width: 600px; }
+
+  /* --- Parts Styles --- */
+  .skin { fill: #e6e2d3; stroke: #1a1a1a; stroke-width: 2.5px; }
+  .dark-part { fill: #555; stroke: #1a1a1a; stroke-width: 2px; }
+  .joint { fill: #333; stroke: #111; stroke-width: 2px; }
+  .nail { fill: #ddd; stroke: #1a1a1a; stroke-width: 1px; }
+  .phone {
+    fill: #4da6ff; stroke: #111; stroke-width: 3px; rx: 10; ry: 10;
+    opacity: 0; transition: opacity 0.4s ease 0.2s;
+  }
+
+  /* --- Animations (CSS Transitions) --- */
+  
+  /* 手のひら全体の回転（イラストに合わせた深い傾き） */
+  #hand-wrapper {
+    transform-origin: 200px 480px;
+    transition: transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .is-holding #hand-wrapper {
+    transform: rotate(-35deg); 
+  }
+
+  /* 指パーツの基本設定 */
+  .finger-base, .finger-tip, #thumb-group, .thumb-tip {
+    transition: all 0.6s cubic-bezier(0.25, 1, 0.5, 1);
+  }
+
+  /* --- HOLD State Logic --- */
+  .is-holding .phone { opacity: 1; }
+
+  /* 2-4指の整列: ケータイの端に垂直に揃える */
+  .is-holding .finger-base { opacity: 0; transform: scaleY(0.5); }
+  
+  /* 指先(末節)の回り込み: イラスト通り爪側からフック */
+  .is-holding #little-tip  { transform: translate(55px, 60px) rotate(110deg); }
+  .is-holding #ring-tip    { transform: translate(50px, 45px) rotate(105deg); }
+  .is-holding #middle-tip  { transform: translate(45px, 30px) rotate(100deg); }
+  .is-holding #index-tip   { transform: translate(40px, 15px) rotate(95deg); }
+
+  /* 親指: 基節骨を短縮(scale)させつつ回転 */
+  #thumb-proximal { transition: transform 0.6s; transform-origin: 320px 480px; }
+  .is-holding #thumb-proximal {
+    transform: scaleY(0.7) rotate(-40deg); /* 奥行きを出すための短縮 */
+  }
+  .is-holding #thumb-group {
+    transform: translate(-15px, -5px);
+  }
+  .is-holding .thumb-tip {
+    transform: translate(-10px, 10px) rotate(35deg);
+  }
+
+</style>
+</head>
+<body>
+
+<div id="controls">
+  <button id="btnRelax" class="active" onclick="setState('relax')">RELAX</button>
+  <button id="btnHold" onclick="setState('hold')">HOLD</button>
+</div>
+
+<svg viewBox="0 0 400 800" id="canvas">
+  
+  <g id="wrist">
+    <path class="dark-part" d="M140 540 L140 680 L260 680 L260 540 Z" />
+    <ellipse class="joint" cx="200" cy="540" rx="65" ry="22" />
+  </g>
+
+  <g id="hand-wrapper">
+    <path class="skin" d="M125 380 L110 460 Q140 560 200 560 Q260 560 290 460 L315 420 L275 380 L225 360 L175 360 Z" />
+    
+    <rect id="phone" class="phone" x="170" y="200" width="105" height="250" />
+
+    <g id="fingers">
+      <g id="little-base" class="finger-base" style="transform-origin: 130px 380px;">
+        <rect class="skin" x="118" y="300" width="24" height="80" rx="10" />
+        <circle class="joint" cx="130" cy="380" r="14" />
+      </g>
+      <g id="little-tip" class="finger-tip" style="transform-origin: 130px 290px;">
+        <rect class="skin" x="118" y="230" width="24" height="70" rx="10" />
+        <path class="nail" d="M122 235 Q130 225 138 235 L138 250 L122 250 Z" />
+        <circle class="joint" cx="130" cy="290" r="12" />
+      </g>
+
+      <g id="ring-base" class="finger-base" style="transform-origin: 175px 360px;">
+        <rect class="skin" x="163" y="270" width="24" height="90" rx="10" />
+        <circle class="joint" cx="175" cy="360" r="14" />
+      </g>
+      <g id="ring-tip" class="finger-tip" style="transform-origin: 175px 260px;">
+        <rect class="skin" x="163" y="200" width="24" height="65" rx="10" />
+        <path class="nail" d="M167 205 Q175 195 183 205 L183 220 L167 220 Z" />
+        <circle class="joint" cx="175" cy="260" r="12" />
+      </g>
+
+      <g id="middle-base" class="finger-base" style="transform-origin: 225px 360px;">
+        <rect class="skin" x="213" y="260" width="24" height="100" rx="10" />
+        <circle class="joint" cx="225" cy="360" r="14" />
+      </g>
+      <g id="middle-tip" class="finger-tip" style="transform-origin: 225px 255px;">
+        <rect class="skin" x="213" y="195" width="24" height="65" rx="10" />
+        <path class="nail" d="M217 200 Q225 190 233 200 L233 215 L217 215 Z" />
+        <circle class="joint" cx="225" cy="255" r="12" />
+      </g>
+
+      <g id="index-base" class="finger-base" style="transform-origin: 275px 380px;">
+        <rect class="skin" x="263" y="290" width="24" height="90" rx="10" />
+        <circle class="joint" cx="275" cy="380" r="14" />
+      </g>
+      <g id="index-tip" class="finger-tip" style="transform-origin: 275px 280px;">
+        <rect class="skin" x="263" y="220" width="24" height="65" rx="10" />
+        <path class="nail" d="M267 225 Q275 215 283 225 L283 240 L267 240 Z" />
+        <circle class="joint" cx="275" cy="280" r="12" />
+      </g>
+    </g>
+
+    <g id="thumb-group">
+      <g id="thumb-proximal">
+        <ellipse class="skin" cx="320" cy="480" rx="28" ry="38" transform="rotate(-20 320 480)"/>
+        <rect class="skin" x="305" y="410" width="30" height="70" rx="12" transform="rotate(-15 320 480)" />
+      </g>
+      <g class="thumb-tip" style="transform-origin: 329px 410px;">
+        <rect class="skin" x="315" y="340" width="28" height="70" rx="10" transform="rotate(-15 329 410)" />
+        <path class="nail" d="M325 345 Q335 335 345 350 L340 360 L320 355 Z" transform="rotate(-15 329 410)"/>
+        <circle class="joint" cx="329" cy="410" r="13" />
+      </g>
+    </g>
+  </g>
+</svg>
+
+<script>
+  function setState(state) {
+    const canvas = document.getElementById('canvas');
+    const btns = document.querySelectorAll('button');
+    btns.forEach(b => b.classList.remove('active'));
+    
+    if (state === 'hold') {
+      canvas.classList.add('is-holding');
+      document.getElementById('btnHold').classList.add('active');
+    } else {
+      canvas.classList.remove('is-holding');
+      document.getElementById('btnRelax').classList.add('active');
+    }
+  }
+</script>
+
+</body>
+</html>
