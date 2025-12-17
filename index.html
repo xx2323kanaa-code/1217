@@ -3,42 +3,48 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no" />
-<title>Robot Hand: Zero Gap Alignment</title>
+<title>Robot Hand: Strict Zero-Gap Alignment v2.0</title>
 <style>
   html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: #111; display: flex; justify-content: center; align-items: center; overflow: hidden; }
   #controls { position: fixed; bottom: 30px; display: flex; gap: 20px; z-index: 100; }
   button { background: #222; color: #ccc; border: 1px solid #444; padding: 12px 28px; border-radius: 30px; font-size: 14px; cursor: pointer; transition: 0.3s; font-weight: bold; }
   button.active { background: #f0c040; color: #000; border-color: #f0c040; }
+  
   svg { height: 90vh; width: 100%; max-width: 600px; }
 
+  /* パーツデザイン */
   .skin { fill: #e6e2d3; stroke: #1a1a1a; stroke-width: 2.5px; }
   .dark-part { fill: #555; stroke: #1a1a1a; stroke-width: 2px; }
   .joint { fill: #333; stroke: #111; stroke-width: 2px; }
   .nail { fill: #ddd; stroke: #1a1a1a; stroke-width: 1px; }
   .phone { fill: #4da6ff; stroke: #111; stroke-width: 3px; rx: 10; ry: 10; opacity: 0; transition: 0.4s; }
 
-  /* アニメーション：位置跳ねを完全に排除 */
-  #hand-pivot, .f-base, .f-tip, #thumb-group, .thumb-distal { 
-    transition: transform 0.5s cubic-bezier(0, 0, 0.2, 1), opacity 0.4s; 
+  /* アニメーション：不自然な浮遊（降ってくる動き）を完全排除 */
+  #hand-pivot, .f-base, .f-tip, #thumb-group { 
+    transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.4s; 
   }
 
-  /* --- HOLD：厳格な物理規制 --- */
+  /* --- HOLD：厳密な物理拘束 --- */
   .is-holding .phone { opacity: 1; }
   
-  /* 手のひら：その場で傾ける */
+  /* 手のひら：軸を固定して回転のみ */
   .is-holding #hand-pivot { transform: rotate(-35deg); transform-origin: 200px 480px; }
 
-  /* 付け根：完全に隠蔽 */
+  /* 付け根：知覚的ノイズになるため消去 */
   .is-holding .f-base { opacity: 0; transform: scale(0); }
 
-  /* 4本の指を「接着」させ「一直線」に揃える演算 */
-  /* X座標 41.5px (親指と反対の長辺) に末端を固定、Y座標を24pxピッチで隙間なく配置 */
-  .is-holding #f-little .f-tip { transform: translate(41.5px, 62px) rotate(90deg); }
-  .is-holding #f-ring .f-tip   { transform: translate(41.5px, 38px) rotate(90deg); }
-  .is-holding #f-middle .f-tip { transform: translate(41.5px, 14px) rotate(90deg); }
-  .is-holding #f-index .f-tip  { transform: translate(41.5px, -10px) rotate(90deg); }
+  /* 指先の接着・一直線整列ロジック 
+     基準点(X=165)に対して末端を揃え、24px幅の指を隙間なく積み上げる
+  */
+  .is-holding .f-tip { transform-origin: center; }
+  
+  /* 垂直整列：X座標(41.5)は共通、Y座標を正確に接着(24px間隔) */
+  .is-holding #tip-little { transform: translate(41.5px, 60px) rotate(90deg); }
+  .is-holding #tip-ring   { transform: translate(41.5px, 36px) rotate(90deg); } /* 60 - 24 = 36 */
+  .is-holding #tip-middle { transform: translate(41.5px, 12px) rotate(90deg); } /* 36 - 24 = 12 */
+  .is-holding #tip-index  { transform: translate(41.5px, -12px) rotate(90deg); } /* 12 - 24 = -12 */
 
-  /* 親指：脱臼防止のため、手のひらの回転軸に従順に配置 */
+  /* 親指：脱臼防止・逆方向屈曲の固定 */
   #thumb-group { transform-origin: 320px 480px; }
   .is-holding #thumb-group { transform: rotate(-35deg); }
   .is-holding .thumb-distal { transform: rotate(15deg); transform-origin: 329px 410px; }
@@ -52,7 +58,7 @@
 </div>
 
 <svg viewBox="0 0 400 800" id="canvas">
-  <g id="wrist-fixed">
+  <g>
     <path class="dark-part" d="M140 540 L140 680 L260 680 L260 540 Z" />
     <ellipse class="joint" cx="200" cy="540" rx="65" ry="22" />
   </g>
@@ -62,24 +68,23 @@
     
     <rect id="phone" class="phone" x="165" y="195" width="100" height="260" />
 
-    <g id="f-little">
-      <g class="f-base" style="transform-origin: 130px 380px;"><rect class="skin" x="118" y="300" width="24" height="80" rx="10"/><circle class="joint" cx="130" cy="380" r="14"/></g>
-      <g class="f-tip" style="transform-origin: 130px 290px;"><rect class="skin" x="118" y="230" width="24" height="60" rx="10"/><path class="nail" d="M122 235 Q130 225 138 235 L138 250 L122 250 Z"/><circle class="joint" cx="130" cy="290" r="12"/></g>
-    </g>
-
-    <g id="f-ring">
-      <g class="f-base" style="transform-origin: 175px 360px;"><rect class="skin" x="163" y="270" width="24" height="90" rx="10"/><circle class="joint" cx="175" cy="360" r="14"/></g>
-      <g class="f-tip" style="transform-origin: 175px 260px;"><rect class="skin" x="163" y="200" width="24" height="60" rx="10"/><path class="nail" d="M167 205 Q175 195 183 205 L183 220 L167 220 Z"/><circle class="joint" cx="175" cy="260" r="12"/></g>
-    </g>
-
-    <g id="f-middle">
-      <g class="f-base" style="transform-origin: 225px 360px;"><rect class="skin" x="213" y="260" width="24" height="100" rx="10"/><circle class="joint" cx="225" cy="360" r="14"/></g>
-      <g class="f-tip" style="transform-origin: 225px 255px;"><rect class="skin" x="213" y="195" width="24" height="60" rx="10"/><path class="nail" d="M217 200 Q225 190 233 200 L233 215 L217 215 Z"/><circle class="joint" cx="225" cy="255" r="12"/></g>
-    </g>
-
-    <g id="f-index">
-      <g class="f-base" style="transform-origin: 275px 380px;"><rect class="skin" x="263" y="290" width="24" height="90" rx="10"/><circle class="joint" cx="275" cy="380" r="14"/></g>
-      <g class="f-tip" style="transform-origin: 275px 280px;"><rect class="skin" x="263" y="220" width="24" height="60" rx="10"/><path class="nail" d="M267 225 Q275 215 283 225 L283 240 L267 240 Z"/><circle class="joint" cx="275" cy="280" r="12"/></g>
+    <g id="finger-container">
+      <g id="f-little">
+        <g class="f-base" style="transform-origin: 130px 380px;"><rect class="skin" x="118" y="300" width="24" height="80" rx="10"/><circle class="joint" cx="130" cy="380" r="14"/></g>
+        <g class="f-tip" id="tip-little" style="transform-origin: 130px 290px;"><rect class="skin" x="118" y="230" width="24" height="60" rx="10"/><path class="nail" d="M122 235 Q130 225 138 235 L138 250 L122 250 Z"/><circle class="joint" cx="130" cy="290" r="12"/></g>
+      </g>
+      <g id="f-ring">
+        <g class="f-base" style="transform-origin: 175px 360px;"><rect class="skin" x="163" y="270" width="24" height="90" rx="10"/><circle class="joint" cx="175" cy="360" r="14"/></g>
+        <g class="f-tip" id="tip-ring" style="transform-origin: 175px 260px;"><rect class="skin" x="163" y="200" width="24" height="60" rx="10"/><path class="nail" d="M167 205 Q175 195 183 205 L183 220 L167 220 Z"/><circle class="joint" cx="175" cy="260" r="12"/></g>
+      </g>
+      <g id="f-middle">
+        <g class="f-base" style="transform-origin: 225px 360px;"><rect class="skin" x="213" y="260" width="24" height="100" rx="10"/><circle class="joint" cx="225" cy="360" r="14"/></g>
+        <g class="f-tip" id="tip-middle" style="transform-origin: 225px 255px;"><rect class="skin" x="213" y="195" width="24" height="60" rx="10"/><path class="nail" d="M217 200 Q225 190 233 200 L233 215 L217 215 Z"/><circle class="joint" cx="225" cy="255" r="12"/></g>
+      </g>
+      <g id="f-index">
+        <g class="f-base" style="transform-origin: 275px 380px;"><rect class="skin" x="263" y="290" width="24" height="90" rx="10"/><circle class="joint" cx="275" cy="380" r="14"/></g>
+        <g class="f-tip" id="tip-index" style="transform-origin: 275px 280px;"><rect class="skin" x="263" y="220" width="24" height="60" rx="10"/><path class="nail" d="M267 225 Q275 215 283 225 L283 240 L267 240 Z"/><circle class="joint" cx="275" cy="280" r="12"/></g>
+      </g>
     </g>
 
     <g id="thumb-group">
@@ -99,6 +104,8 @@
     const canvas = document.getElementById('canvas');
     const btns = document.querySelectorAll('button');
     btns.forEach(b => b.classList.remove('active'));
+    
+    // 状態を適用
     if (state === 'hold') {
       canvas.classList.add('is-holding');
       document.getElementById('btnHold').classList.add('active');
